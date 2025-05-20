@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Brick Breaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .brick {
+            transition: all 0.2s ease;
+        }
+        
+        .brick:hover {
+            transform: scale(1.03);
+        }
+        
+        .brick-hit {
+            animation: shake 0.2s;
+        }
+        
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        
+        .brick-destroyed {
+            animation: fadeOut 0.3s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to { opacity: 0; transform: scale(0.8); }
+        }
+        
+        .paddle {
+            transition: all 0.1s ease;
+        }
+        
+        .ball {
+            transition: all 0.05s linear;
+        }
+        
+        .correct-typing {
+            color: #10B981;
+            font-weight: bold;
+        }
+        
+        .incorrect-typing {
+            color: #EF4444;
+            text-decoration: underline;
+        }
+        
+        .modal {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background-color: #1F2937;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen font-mono flex flex-col items-center justify-center p-4">
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-green-400 mb-2">Typing Brick Breaker</h1>
+        <p class="text-gray-400">Digite as palavras para quebrar os blocos!</p>
+    </div>
+
+    <div class="flex gap-8 items-start">
+        <!-- Game Stats -->
+        <div class="bg-gray-800 rounded-lg p-6 text-white w-64">
+            <div class="mb-6">
+                <h3 class="text-xl font-bold text-green-400 mb-2">Estatísticas</h3>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-gray-400">Pontuação:</p>
+                        <p id="score" class="text-2xl font-bold">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Blocos restantes:</p>
+                        <p id="bricks-left" class="text-xl">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Precisão:</p>
+                        <p id="accuracy" class="text-xl">100%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Nível:</p>
+                        <p id="level" class="text-xl">1</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pt-4 border-t border-gray-700">
+                <h3 class="text-xl font-bold text-green-400 mb-2">Controles</h3>
+                <p class="text-gray-400 mb-3">Use o mouse para mover a plataforma</p>
+                <p class="text-gray-400">Digite a palavra exibida para atacar</p>
+            </div>
+            
+            <button id="start-btn" class="mt-6 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-all">
+                <i class="fas fa-play mr-2"></i> Começar
+            </button>
+        </div>
+
+        <!-- Game Container -->
+        <div id="game-container" class="relative">
+            <!-- Paddle -->
+            <div id="paddle" class="paddle absolute bottom-4 left-1/2 transform -translate-x-1/2 w-32 h-4 bg-green-400 rounded-full"></div>
+            
+            <!-- Ball -->
+            <div id="ball" class="ball absolute w-6 h-6 bg-white rounded-full hidden"></div>
+            
+            <!-- Current Word Display -->
+            <div id="word-display" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg text-xl font-bold hidden">
+                <span id="target-word"></span>
+            </div>
+            
+            <!-- Input Field (hidden but captures typing) -->
+            <input type="text" id="typing-input" class="opacity-0 absolute top-0 left-0 w-0 h-0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            
+            <!-- Bricks will be generated by JavaScript -->
+            <div id="bricks-container" class="absolute top-16 left-0 w-full grid grid-cols-8 gap-2 px-4"></div>
+            
+            <!-- Game Over Modal -->
+            <div id="game-over-modal" class="modal absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden">
+                <div class="bg-gray-800 rounded-xl p-8 max-w-sm w-full mx-4 text-center">
+                    <div class="text-6xl mb-4">
+                        <i id="game-over-icon" class="fas fa-trophy text-yellow-500"></i>
+                    </div>
+                    <h2 id="game-over-message" class="text-3xl font-bold text-white mb-4">Fim de Jogo!</h2>
+                    <p id="final-score" class="text-xl text-green-400 mb-2">Pontuação: 0</p>
+                    <p id="final-accuracy" class="text-lg text-gray-400 mb-6">Precisão: 100%</p>
+                    <button id="restart-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg w-full transition-all">
+                        Jogar Novamente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Bank -->
+    <div class="mt-8 bg-gray-800 rounded-lg p-6 text-white max-w-4xl w-full">
+        <h3 class="text-xl font-bold text-green-400 mb-4">Banco de Palavras</h3>
+        <div id="word-bank" class="flex flex-wrap gap-2">
+            <!-- Words will be added by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Game elements
+        const gameContainer = document.getElementById('game-container');
+        const paddle = document.getElementById('paddle');
+        const ball = document.getElementById('ball');
+        const bricksContainer = document.getElementById('bricks-container');
+        const wordDisplay = document.getElementById('word-display');
+        const targetWordElement = document.getElementById('target-word');
+        const typingInput = document.getElementById('typing-input');
+        const scoreElement = document.getElementById('score');
+        const bricksLeftElement = document.getElementById('bricks-left');
+        const accuracyElement = document.getElementById('accuracy');
+        const levelElement = document.getElementById('level');
+        const startBtn = document.getElementById('start-btn');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const finalScoreElement = document.getElementById('final-score');
+        const finalAccuracyElement = document.getElementById('final-accuracy');
+        const restartBtn = document.getElementById('restart-btn');
+        const wordBankElement = document.getElementById('word-bank');
+        
+        // Game state
+        let gameRunning = false;
+        let score = 0;
+        let bricksLeft = 0;
+        let correctChars = 0;
+        let totalChars = 0;
+        let level = 1;
+        let currentTargetWord = '';
+        let currentTypedWord = '';
+        let ballX = 0;
+        let ballY = 0;
+        let ballSpeedX = 0;
+        let ballSpeedY = 0;
+        let paddleX = 0;
+        
+        // Word lists by difficulty
+        const wordLists = {
+            easy: ["casa", "cão", "sol", "mar", "lua", "paz", "rio", "voz", "pão", "pé", "mão", "pai", "mãe", "dia", "noite"],
+            medium: ["computador", "teclado", "programa", "internet", "monitor", "mouse", "rede", "dados", "código", "tela", "vídeo", "jogo", "texto", "pasta", "arquivo"],
+            hard: ["algoritmo", "framework", "javascript", "desenvolvedor", "aplicativo", "interface", "biblioteca", "compilador", "depuração", "funcional", "paradigma", "sintaxe", "variável", "herança", "polimorfismo"]
+        };
+        
+        // Initialize the game
+        function initGame() {
+            // Reset game state
+            score = 0;
+            correctChars = 0;
+            totalChars = 0;
+            level = 1;
+            gameRunning = false;
+            
+            // Update UI
+            scoreElement.textContent = "0";
+            accuracyElement.textContent = "100%";
+            levelElement.textContent = "1";
+            
+            // Clear bricks
+            bricksContainer.innerHTML = '';
+            
+            // Hide ball and word display
+            ball.classList.add('hidden');
+            wordDisplay.classList.add('hidden');
+            gameOverModal.classList.add('hidden');
+            
+            // Populate word bank
+            populateWordBank();
+            
+            // Focus input for typing
+            typingInput.focus();
+        }
+        
+        // Start the game
+        function startGame() {
+            if (gameRunning) return;
+            
+            gameRunning = true;
+            startBtn.disabled = true;
+            
+            // Create bricks
+            createBricks();
+            
+            // Initialize paddle position
+            paddleX = gameContainer.offsetWidth / 2 - paddle.offsetWidth / 2;
+            paddle.style.left = paddleX + 'px';
+            
+            // Initialize ball position
+            ballX = gameContainer.offsetWidth / 2 - ball.offsetWidth / 2;
+            ballY = gameContainer.offsetHeight - paddle.offsetHeight - ball.offsetHeight - 10;
+            ball.style.left = ballX + 'px';
+            ball.style.top = ballY + 'px';
+            
+            // Set random ball direction
+            ballSpeedX = (Math.random() * 4 - 2);
+            ballSpeedY = -4;
+            
+            // Show ball
+            ball.classList.remove('hidden');
+            
+            // Select a target word
+            selectTargetWord();
+            
+            // Start game loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Move ball
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+            
+            // Ball collision with walls
+            if (ballX <= 0 || ballX >= gameContainer.offsetWidth - ball.offsetWidth) {
+                ballSpeedX = -ballSpeedX;
+            }
+            
+            if (ballY <= 0) {
+                ballSpeedY = -ballSpeedY;
+            }
+            
+            // Ball collision with paddle
+            if (
+                ballY + ball.offsetHeight >= paddle.offsetTop &&
+                ballX + ball.offsetWidth >= paddleX &&
+                ballX <= paddleX + paddle.offsetWidth
+            ) {
+                // Calculate bounce angle based on where ball hits paddle
+                const hitPosition = (ballX + ball.offsetWidth / 2) - (paddleX + paddle.offsetWidth / 2);
+                const normalizedHit = hitPosition / (paddle.offsetWidth / 2);
+                
+                ballSpeedX = normalizedHit * 5;
+                ballSpeedY = -Math.abs(ballSpeedY);
+            }
+            
+            // Ball out of bounds (game over)
+            if (ballY > gameContainer.offsetHeight) {
+                gameOver(false);
+                return;
+            }
+            
+            // Update ball position
+            ball.style.left = ballX + 'px';
+            ball.style.top = ballY + 'px';
+            
+            // Continue game loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Create bricks
+        function createBricks() {
+            bricksContainer.innerHTML = '';
+            
+            // Determine word list based on level
+            let wordList;
+            if (level <= 3) {
+                wordList = wordLists.easy;
+            } else if (level <= 6) {
+                wordList = wordLists.medium;
+            } else {
+                wordList = wordLists.hard;
+            }
+            
+            // Create bricks (fewer bricks in higher levels but longer words)
+            const brickCount = Math.max(8, 16 - level);
+            bricksLeft = brickCount;
+            bricksLeftElement.textContent = bricksLeft;
+            
+            for (let i = 0; i < brickCount; i++) {
+                const brick = document.createElement('div');
+                brick.className = 'brick h-12 flex items-center justify-center text-white font-bold rounded text-center text-sm';
+                
+                // Assign a random word from the appropriate list
+                const word = wordList[Math.floor(Math.random() * wordList.length)];
+                brick.textContent = word;
+                brick.dataset.word = word;
+                
+                // Set random brick color
+                const hue = Math.floor(Math.random() * 60) + 180; // Blue-green range
+                brick.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
+                
+                bricksContainer.appendChild(brick);
+            }
+        }
+        
+        // Select a target word from visible bricks
+        function selectTargetWord() {
+            const bricks = Array.from(bricksContainer.children);
+            const visibleBricks = bricks.filter(brick => !brick.classList.contains('brick-destroyed'));
+            
+            if (visibleBricks.length === 0) {
+                // Level complete
+                levelComplete();
+                return;
+            }
+            
+            // Choose a random brick's word
+            const randomBrick = visibleBricks[Math.floor(Math.random() * visibleBricks.length)];
+            currentTargetWord = randomBrick.dataset.word;
+            
+            // Highlight the target brick
+            bricks.forEach(brick => brick.classList.remove('border-2', 'border-yellow-400'));
+            randomBrick.classList.add('border-2', 'border-yellow-400');
+            
+            // Display the target word
+            targetWordElement.textContent = currentTargetWord;
+            wordDisplay.classList.remove('hidden');
+            
+            // Reset typing
+            currentTypedWord = '';
+            typingInput.value = '';
+            updateWordDisplay();
+            
+            // Focus input
+            typingInput.focus();
+        }
+        
+        // Update the word display with colored letters
+        function updateWordDisplay() {
+            targetWordElement.innerHTML = '';
+            
+            for (let i = 0; i < currentTargetWord.length; i++) {
+                const charSpan = document.createElement('span');
+                charSpan.textContent = currentTargetWord[i];
+                
+                if (i < currentTypedWord.length) {
+                    if (currentTypedWord[i] === currentTargetWord[i]) {
+                        charSpan.className = 'correct-typing';
+                        correctChars++;
+                    } else {
+                        charSpan.className = 'incorrect-typing';
+                    }
+                    totalChars++;
+                }
+                
+                targetWordElement.appendChild(charSpan);
+            }
+            
+            // Update accuracy
+            if (totalChars > 0) {
+                const accuracy = Math.round((correctChars / totalChars) * 100);
+                accuracyElement.textContent = `${accuracy}%`;
+            }
+        }
+        
+        // Handle typing input
+        typingInput.addEventListener('input', (e) => {
+            if (!gameRunning) return;
+            
+            currentTypedWord = typingInput.value.toLowerCase();
+            updateWordDisplay();
+            
+            // Check if word is complete and correct
+            if (currentTypedWord === currentTargetWord) {
+                // Find and destroy the brick with this word
+                const bricks = Array.from(bricksContainer.children);
+                const targetBrick = bricks.find(brick => brick.dataset.word === currentTargetWord);
+                
+                if (targetBrick) {
+                    // Add score (more points for longer words)
+                    score += currentTargetWord.length * 10 * level;
+                    scoreElement.textContent = score;
+                    
+                    // Destroy brick
+                    targetBrick.classList.add('brick-destroyed');
+                    bricksLeft--;
+                    bricksLeftElement.textContent = bricksLeft;
+                    
+                    // Check if all bricks are destroyed
+                    if (bricksLeft === 0) {
+                        levelComplete();
+                        return;
+                    }
+                }
+                
+                // Select new target word
+                setTimeout(() => {
+                    selectTargetWord();
+                }, 300);
+            }
+        });
+        
+        // Level complete
+        function levelComplete() {
+            wordDisplay.classList.add('hidden');
+            
+            // Increase level
+            level++;
+            levelElement.textContent = level;
+            
+            // Create new bricks for next level
+            setTimeout(() => {
+                createBricks();
+                selectTargetWord();
+            }, 1000);
+        }
+        
+        // Game over
+        function gameOver(won) {
+            gameRunning = false;
+            
+            // Update game over modal
+            if (won) {
+                gameOverMessage.textContent = "Você Venceu!";
+                document.getElementById('game-over-icon').className = 'fas fa-trophy text-yellow-500';
+            } else {
+                gameOverMessage.textContent = "Fim de Jogo";
+                document.getElementById('game-over-icon').className = 'fas fa-times-circle text-red-500';
+            }
+            
+            finalScoreElement.textContent = `Pontuação: ${score}`;
+            
+            const accuracy = totalChars > 0 ? Math.round((correctChars / totalChars) * 100) : 100;
+            finalAccuracyElement.textContent = `Precisão: ${accuracy}%`;
+            
+            // Show modal
+            gameOverModal.classList.remove('hidden');
+        }
+        
+        // Populate word bank
+        function populateWordBank() {
+            wordBankElement.innerHTML = '';
+            
+            // Add words from all difficulty levels
+            const allWords = [...wordLists.easy, ...wordLists.medium, ...wordLists.hard];
+            
+            allWords.forEach(word => {
+                const wordElement = document.createElement('span');
+                wordElement.className = 'bg-gray-700 px-3 py-1 rounded';
+                wordElement.textContent = word;
+                wordBankElement.appendChild(wordElement);
+            });
+        }
+        
+        // Paddle movement
+        gameContainer.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            
+            const containerRect = gameContainer.getBoundingClientRect();
+            const mouseX = e.clientX - containerRect.left;
+            
+            // Keep paddle within game container
+            paddleX = Math.max(
+                0,
+                Math.min(
+                    mouseX - paddle.offsetWidth / 2,
+                    gameContainer.offsetWidth - paddle.offsetWidth
+                )
+            );
+            
+            paddle.style.left = paddleX + 'px';
+        });
+        
+        // Start button
+        startBtn.addEventListener('click', () => {
+            initGame();
+            startGame();
+        });
+        
+        // Restart button
+        restartBtn.addEventListener('click', () => {
+            initGame();
+            startGame();
+        });
+        
+        // Initialize game on load
+        initGame();
+    </script>
+</body>
+</html>
